@@ -1,164 +1,271 @@
-import { ValidContentTypes } from "./content-types"
-import { HoppRESTAuth } from "./HoppRESTAuth"
+import * as Eq from "fp-ts/Eq"
+import * as S from "fp-ts/string"
+import cloneDeep from "lodash/cloneDeep"
+import { createVersionedEntity, InferredEntity } from "verzod"
+import { z } from "zod"
+
+import { lodashIsEqualEq, mapThenEq, undefinedEq } from "../utils/eq"
+
+import V0_VERSION from "./v/0"
+import V1_VERSION from "./v/1"
+import V2_VERSION, { HoppRESTRequestVariables } from "./v/2"
+import V3_VERSION from "./v/3"
+import V4_VERSION from "./v/4"
+import V5_VERSION from "./v/5"
+import V6_VERSION from "./v/6"
+import V7_VERSION, { HoppRESTHeaders, HoppRESTParams } from "./v/7"
+import V8_VERSION from "./v/8"
+import V9_VERSION from "./v/9"
+import V10_VERSION, { HoppRESTReqBody } from "./v/10"
+import V11_VERSION, { HoppRESTAuth, HoppRESTRequestResponses } from "./v/11"
 
 export * from "./content-types"
-export * from "./HoppRESTAuth"
 
-export const RESTReqSchemaVersion = "1"
+export {
+  HoppRESTAuthBasic,
+  HoppRESTAuthBearer,
+  HoppRESTAuthInherit,
+  HoppRESTAuthNone,
+} from "./v/1"
 
-export type HoppRESTParam = {
-  key: string
-  value: string
-  active: boolean
-}
+export { HoppRESTRequestVariables } from "./v/2"
 
-export type HoppRESTHeader = {
-  key: string
-  value: string
-  active: boolean
-}
+export { ImplicitOauthFlowParams } from "./v/3"
 
-export type FormDataKeyValue = {
-  key: string
-  active: boolean
-} & ({ isFile: true; value: Blob[] } | { isFile: false; value: string })
+export { HoppRESTAuthAPIKey } from "./v/4"
 
-export type HoppRESTReqBodyFormData = {
-  contentType: "multipart/form-data"
-  body: FormDataKeyValue[]
-}
+export { AuthCodeGrantTypeParams } from "./v/5"
 
-export type HoppRESTReqBody =
-  | {
-      contentType: Exclude<ValidContentTypes, "multipart/form-data">
-      body: string
+export {
+  HoppRESTAuthAWSSignature,
+  HoppRESTHeaders,
+  HoppRESTParams,
+} from "./v/7"
+
+export { HoppRESTAuthDigest, PasswordGrantTypeParams } from "./v/8"
+
+export { FormDataKeyValue } from "./v/9"
+
+export {
+  HoppRESTResponseOriginalRequest,
+  HoppRESTRequestResponse,
+  HoppRESTRequestResponses,
+} from "./v/11"
+
+export { HoppRESTReqBody } from "./v/10"
+
+export {
+  HoppRESTAuthOAuth2,
+  HoppRESTAuth,
+  ClientCredentialsGrantTypeParams,
+} from "./v/11"
+
+const versionedObject = z.object({
+  // v is a stringified number
+  v: z.string().regex(/^\d+$/).transform(Number),
+})
+
+export const HoppRESTRequest = createVersionedEntity({
+  latestVersion: 11,
+  versionMap: {
+    0: V0_VERSION,
+    1: V1_VERSION,
+    2: V2_VERSION,
+    3: V3_VERSION,
+    4: V4_VERSION,
+    5: V5_VERSION,
+    6: V6_VERSION,
+    7: V7_VERSION,
+    8: V8_VERSION,
+    9: V9_VERSION,
+    10: V10_VERSION,
+    11: V11_VERSION,
+  },
+  getVersion(data) {
+    // For V1 onwards we have the v string storing the number
+    const versionCheck = versionedObject.safeParse(data)
+
+    if (versionCheck.success) return versionCheck.data.v
+
+    // For V0 we have to check the schema
+    const result = V0_VERSION.schema.safeParse(data)
+
+    return result.success ? 0 : null
+  },
+})
+
+export type HoppRESTRequest = InferredEntity<typeof HoppRESTRequest>
+
+// TODO: Handle the issue with the preRequestScript and testScript type check failures on pre-commit
+const HoppRESTRequestEq = Eq.struct<HoppRESTRequest>({
+  id: undefinedEq(S.Eq),
+  v: S.Eq,
+  auth: lodashIsEqualEq,
+  body: lodashIsEqualEq,
+  endpoint: S.Eq,
+  headers: mapThenEq(
+    (arr) => arr.filter((h: any) => h.key !== "" && h.value !== ""),
+    lodashIsEqualEq
+  ),
+  params: mapThenEq(
+    (arr) => arr.filter((p: any) => p.key !== "" && p.value !== ""),
+    lodashIsEqualEq
+  ),
+  method: S.Eq,
+  name: S.Eq,
+  preRequestScript: S.Eq,
+  testScript: S.Eq,
+  requestVariables: mapThenEq(
+    (arr) => arr.filter((v: any) => v.key !== "" && v.value !== ""),
+    lodashIsEqualEq
+  ),
+  responses: lodashIsEqualEq,
+})
+
+export const RESTReqSchemaVersion = "11"
+
+export type HoppRESTParam = HoppRESTRequest["params"][number]
+export type HoppRESTHeader = HoppRESTRequest["headers"][number]
+export type HoppRESTRequestVariable =
+  HoppRESTRequest["requestVariables"][number]
+
+export const isEqualHoppRESTRequest = HoppRESTRequestEq.equals
+
+/**
+ * Safely tries to extract REST Request data from an unknown value.
+ * If we fail to detect certain bits, we just resolve it to the default value
+ * @param x The value to extract REST Request data from
+ * @param defaultReq The default REST Request to source from
+ *
+ * @deprecated Usage of this function is no longer recommended and is only here
+ * for legacy reasons and will be removed
+ */
+export function safelyExtractRESTRequest(
+  x: unknown,
+  defaultReq: HoppRESTRequest
+): HoppRESTRequest {
+  const req = cloneDeep(defaultReq)
+
+  if (!!x && typeof x === "object") {
+    if ("id" in x && typeof x.id === "string") req.id = x.id
+
+    if ("name" in x && typeof x.name === "string") req.name = x.name
+
+    if ("method" in x && typeof x.method === "string") req.method = x.method
+
+    if ("endpoint" in x && typeof x.endpoint === "string")
+      req.endpoint = x.endpoint
+
+    if ("preRequestScript" in x && typeof x.preRequestScript === "string")
+      req.preRequestScript = x.preRequestScript
+
+    if ("testScript" in x && typeof x.testScript === "string")
+      req.testScript = x.testScript
+
+    if ("body" in x) {
+      const result = HoppRESTReqBody.safeParse(x.body)
+
+      if (result.success) {
+        req.body = result.data
+      }
     }
-  | HoppRESTReqBodyFormData
-  | {
-      contentType: null
-      body: null
+
+    if ("auth" in x) {
+      const result = HoppRESTAuth.safeParse(x.auth)
+
+      if (result.success) {
+        //  @ts-ignore
+        req.auth = result.data
+      }
     }
 
-export interface HoppRESTRequest {
-  v: string
-  id?: string // Firebase Firestore ID
+    if ("params" in x) {
+      const result = HoppRESTParams.safeParse(x.params)
 
-  name: string
-  method: string
-  endpoint: string
-  params: HoppRESTParam[]
-  headers: HoppRESTHeader[]
-  preRequestScript: string
-  testScript: string
+      if (result.success) {
+        req.params = result.data
+      }
+    }
 
-  auth: HoppRESTAuth
+    if ("headers" in x) {
+      const result = HoppRESTHeaders.safeParse(x.headers)
 
-  body: HoppRESTReqBody
+      if (result.success) {
+        req.headers = result.data
+      }
+    }
+
+    if ("requestVariables" in x) {
+      const result = HoppRESTRequestVariables.safeParse(x.requestVariables)
+
+      if (result.success) {
+        req.requestVariables = result.data
+      }
+    }
+
+    if ("responses" in x) {
+      const result = HoppRESTRequestResponses.safeParse(x.responses)
+
+      if (result.success) {
+        req.responses = result.data
+      }
+    }
+  }
+
+  return req
 }
 
 export function makeRESTRequest(
   x: Omit<HoppRESTRequest, "v">
 ): HoppRESTRequest {
   return {
-    ...x,
     v: RESTReqSchemaVersion,
+    ...x,
   }
 }
 
-export function isHoppRESTRequest(x: any): x is HoppRESTRequest {
-  return x && typeof x === "object" && "v" in x
-}
-
-function parseRequestBody(x: any): HoppRESTReqBody {
-  if (x.contentType === "application/json") {
-    return {
-      contentType: "application/json",
-      body: x.rawParams,
-    }
-  }
-
+export function getDefaultRESTRequest(): HoppRESTRequest {
   return {
-    contentType: "application/json",
-    body: "",
+    v: RESTReqSchemaVersion,
+    endpoint: "https://echo.hoppscotch.io",
+    name: "Untitled",
+    params: [],
+    headers: [],
+    method: "GET",
+    auth: {
+      authType: "inherit",
+      authActive: true,
+    },
+    preRequestScript: "",
+    testScript: "",
+    body: {
+      contentType: null,
+      body: null,
+    },
+    requestVariables: [],
+    responses: {},
   }
 }
 
-export function translateToNewRequest(x: any): HoppRESTRequest {
-  if (isHoppRESTRequest(x)) {
-    return x
-  } else {
-    // Old format
-    const endpoint: string = `${x?.url ?? ""}${x?.path ?? ""}`
-
-    const headers: HoppRESTHeader[] = x?.headers ?? []
-
-    // Remove old keys from params
-    const params: HoppRESTParam[] = (x?.params ?? []).map(
-      ({
-        key,
-        value,
-        active,
-      }: {
-        key: string
-        value: string
-        active: boolean
-      }) => ({
-        key,
-        value,
-        active,
-      })
-    )
-
-    const name = x?.name ?? "Untitled request"
-    const method = x?.method ?? ""
-
-    const preRequestScript = x?.preRequestScript ?? ""
-    const testScript = x?.testScript ?? ""
-
-    const body = parseRequestBody(x)
-
-    const auth = parseOldAuth(x)
-
-    const result: HoppRESTRequest = {
-      name,
-      endpoint,
-      headers,
-      params,
-      method,
-      preRequestScript,
-      testScript,
-      body,
-      auth,
-      v: RESTReqSchemaVersion,
-    }
-
-    if (x.id) result.id = x.id
-
-    return result
-  }
+/**
+ * Checks if the given value is a HoppRESTRequest
+ * @param x The value to check
+ *
+ * @deprecated This function is no longer recommended and is only here for legacy reasons
+ * Use `HoppRESTRequest.is`/`HoppRESTRequest.isLatest` instead.
+ */
+export function isHoppRESTRequest(x: unknown): x is HoppRESTRequest {
+  return HoppRESTRequest.isLatest(x)
 }
 
-export function parseOldAuth(x: any): HoppRESTAuth {
-  if (!x.auth || x.auth === "None")
-    return {
-      authType: "none",
-      authActive: true,
-    }
-
-  if (x.auth === "Basic Auth")
-    return {
-      authType: "basic",
-      authActive: true,
-      username: x.httpUser,
-      password: x.httpPassword,
-    }
-
-  if (x.auth === "Bearer Token")
-    return {
-      authType: "bearer",
-      authActive: true,
-      token: x.bearerToken,
-    }
-
-  return { authType: "none", authActive: true }
+/**
+ * Safely parses a value into a HoppRESTRequest.
+ * @param x The value to check
+ *
+ * @deprecated This function is no longer recommended and is only here for
+ * legacy reasons. Use `HoppRESTRequest.safeParse` instead.
+ */
+export function translateToNewRequest(x: unknown): HoppRESTRequest {
+  const result = HoppRESTRequest.safeParse(x)
+  return result.type === "ok" ? result.value : getDefaultRESTRequest()
 }
