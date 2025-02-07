@@ -1,30 +1,78 @@
 {
   "name": "hoppscotch-app",
-  "version": "2.1.0",
+  "version": "3.0.1",
   "description": "Open source API development ecosystem",
   "author": "Hoppscotch (support@hoppscotch.io)",
   "private": true,
   "license": "MIT",
+  "packageManager": "pnpm@10.2.1",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "prepare": "husky install",
+    "prepare": "husky",
     "dev": "pnpm -r do-dev",
+    "gen-gql": "cross-env GQL_SCHEMA_EMIT_LOCATION='../../../gql-gen/backend-schema.gql' pnpm -r generate-gql-sdl",
     "generate": "pnpm -r do-build-prod",
-    "start": "pnpm -r do-prod-start",
+    "start": "http-server packages/hoppscotch-selfhost-web/dist -p 3000",
     "lint": "pnpm -r do-lint",
+    "typecheck": "pnpm -r do-typecheck",
     "lintfix": "pnpm -r do-lintfix",
-    "pre-commit": "pnpm -r do-lint",
-    "test": "pnpm -r do-test"
+    "pre-commit": "pnpm -r do-lint && pnpm -r do-typecheck",
+    "test": "pnpm -r do-test",
+    "generate-ui": "pnpm -r do-build-ui"
   },
   "workspaces": [
     "./packages/*"
   ],
-  "dependencies": {
-    "husky": "^7.0.4",
-    "lint-staged": "^12.1.4"
-  },
   "devDependencies": {
-    "@commitlint/cli": "^16.0.0",
-    "@commitlint/config-conventional": "^16.0.0"
+    "@commitlint/cli": "19.5.0",
+    "@commitlint/config-conventional": "19.5.0",
+    "@hoppscotch/ui": "0.2.2",
+    "@types/node": "22.7.6",
+    "cross-env": "7.0.3",
+    "http-server": "14.1.1",
+    "husky": "9.1.6",
+    "lint-staged": "15.2.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "cookie": "0.7.2",
+      "cross-spawn": "7.0.6",
+      "vue": "3.5.12",
+      "@nestjs-modules/mailer>mjml": "5.0.0-alpha.4",
+      "subscriptions-transport-ws>ws": "7.5.10",
+      "braces": "3.0.3",
+      "send": "0.19.0",
+      "pug": "3.0.3",
+      "body-parser": "1.20.3",
+      "path-to-regexp@3.2.0": "3.3.0",
+      "path-to-regexp@0.1.10": "0.1.12",
+      "micromatch@<4.0.8": "4.0.8",
+      "dset@3.1.3": "3.1.4",
+      "nanoid@3.3.7": "3.3.8",
+      "execa@0.10.0": "2.0.0"
+    },
+    "packageExtensions": {
+      "@hoppscotch/httpsnippet": {
+        "dependencies": {
+          "ajv": "6.12.3"
+        }
+      }
+    },
+    "onlyBuiltDependencies": [
+      "@apollo/protobufjs",
+      "@import-meta-env/unplugin",
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "@swc/core",
+      "argon2",
+      "bcrypt",
+      "canvas",
+      "core-js",
+      "esbuild",
+      "isolated-vm",
+      "prisma",
+      "vue-demi"
+    ]
   }
 }
